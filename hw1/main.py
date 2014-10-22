@@ -24,13 +24,45 @@ def main():
 	my_data = np.genfromtxt(args.file, delimiter=',', skip_header=1, usecols=(2,3,4,5,6,7), dtype=int)
 	data_true = np.genfromtxt(args.file, delimiter=',', skip_header=1, usecols=(1), dtype=int)
 	
+	#mean and std diviation for lenghts
+	mean_l, std_div_l =  min_max_lenght (my_data)
+
 	lables = DBSCAN (my_data, args.minPts, args.eps)
+	eps = args.eps
+	minPts = args.minPts
+	max_noise_level = 0.5
 	
-	print "number of clasters = ", np.unique (lables).size
-	print "purity = ", purity (lables, data_true)
-	print "rand index = ", rand_index (lables, data_true)
-	print "mutual info = ", mutual_info_score (lables, data_true)
-	print silhouette_score (my_data, lables)
+	lables_without_noise = lables [lables != -1]
+	my_data_without_noise = my_data [lables != -1]
+	silhouette = silhouette_score (my_data_without_noise, lables_without_noise)
+	
+	#trying to find best fitting eps and minPts, using silhouette score
+	for eps_cur in  np.linspace (mean_l - 2*std_div_l, mean_l + 2*std_div_l, args.num_stad):
+		for minPts_cur in np.arange (args.min, args.max, 1):
+			cur_lables = DBSCAN (my_data, minPts_cur, eps_cur)
+			
+			my_data_without_noise = my_data [cur_lables != -1]
+			lables_without_noise = cur_lables [cur_lables != -1]
+			cur_silhouette = silhouette_score (my_data_without_noise, lables_without_noise)
+			
+			if cur_silhouette > silhouette and 1.0*(cur_lables.size - lables_without_noise.size)/cur_lables.size < max_noise_level :
+				lables = cur_lables
+				silhouette = cur_silhouette
+				eps = eps_cur
+				minPts = minPts_cur
+				
+	#our data without noise
+	lables_without_noise = lables [lables != -1]
+	my_data_without_noise = my_data [lables != -1]
+	data_true_without_noise = data_true [lables != -1]
+	
+	print "eps = ", eps, ", minPts = ", minPts
+	print "silhouette = ", silhouette
+	print "number of noise = ", 1.0 *(lables.size - lables_without_noise.size)/lables.size
+	print "number of clasters = ", np.unique (lables_without_noise).size
+	print "purity = ", purity (lables_without_noise, data_true_without_noise)
+	print "rand index = ", rand_index (lables_without_noise, data_true_without_noise)
+	print "mutual info = ", mutual_info_score (lables_without_noise, data_true_without_noise)
 	pass
 
 
@@ -42,6 +74,10 @@ def parse_args():
 	
 	parser.add_argument('-e', dest='eps',  type=float, default=40000, help='maximum radius of sfera, where you can find neighbors')
 	parser.add_argument('-m', dest='minPts',  type=int, default=6, help='minimum number of elements, when you take an element for a center')
+	parser.add_argument('-k', dest='num_stad',  type=int, default=16, help='')
+	parser.add_argument('--min', dest='min',  type=int, default=2, help='min range of minPts')
+	parser.add_argument('--max', dest='max',  type=int, default=8, help='max range of minPts')
+	
 	return parser.parse_args()
 
 
@@ -117,6 +153,29 @@ def purity (lables, data_true):
 		max_elements += cur_max
 			
 	return 1.0*max_elements/size
+
+def min_max_lenght (X):
+	if X.shape[0] < 2:
+		return 0
+	min_l = np.sqrt (np.sum((X[0]-X[1])*(X[0]-X[1])))
+	max_l = np.sqrt (np.sum((X[0]-X[1])*(X[0]-X[1])))
+	lengths = min_l
+	
+#	for i in xrange (X.shape[0]):
+#		for j in xrange (X.shape[0]):
+#			if i == j:
+#				continue
+#			
+#			length = np.sqrt (np.sum((X[j]-X[i])*(X[j]-X[i])))
+#			#lengths = np.append (lengths,length)
+#			if min_l > length:
+#				min_l = length
+#			if max_l < length:
+#				max_l = length
+	#print np.mean (lengths), np.std (lengths)
+#	return min_l, max_l, np.mean (lengths), np.std (lengths)
+	return 20848.6117805, 16831.7687567
+
 
 if __name__ == '__main__':
 	main()
